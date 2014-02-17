@@ -55,12 +55,29 @@ define apt::key (
           'source'  => "wget -q '${key_source}' -O- | apt-key add -",
           'server'  => "apt-key adv --keyserver '${key_server}' ${options_string} --recv-keys '${upkey}'",
         }
+
+        if $method == 'source' and defined(Class[apt]) {
+            $proxy_host = $apt::proxy_host
+            $proxy_port = $apt::proxy_port
+            case $proxy_host {
+              false, '': {
+                $proxy_env = []
+              }
+              default: {
+                $proxy_env = ["http_proxy=http://${proxy_host}:${proxy_port}", "https_proxy=http://${proxy_host}:${proxy_port}"]
+              }
+            }
+        } else {
+          $proxy_env = []
+        }
+
         exec { $digest:
-          command   => $digest_command,
-          path      => '/bin:/usr/bin',
-          unless    => "/usr/bin/apt-key list | /bin/grep '${trimmedkey}'",
-          logoutput => 'on_failure',
-          before    => Anchor["apt::key ${upkey} present"],
+          command     => $digest_command,
+          path        => '/bin:/usr/bin',
+          unless      => "/usr/bin/apt-key list | /bin/grep '${trimmedkey}'",
+          logoutput   => 'on_failure',
+          environment => $proxy_env,
+          before      => Anchor["apt::key ${upkey} present"],
         }
       }
 
